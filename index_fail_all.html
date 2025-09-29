@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VWO Debugger - Full Failure Test Page</title>
+
+  <!-- 1) Inline SmartCode-like snippet (simulate "directly added SmartCode") -->
+  <script>
+    window._vwo_code = window._vwo_code || function() { console.log('vwo inline init 1'); };
+  </script>
+
+  <!-- 2) Duplicate SmartCode (simulate duplicate installation) -->
+  <script>
+    window._vwo_code = window._vwo_code || function() { console.log('vwo inline init 2'); };
+  </script>
+
+  <!-- 3) External script that will 404 / network error -->
+  <script src="https://nonexistent-domain.example.invalid/notfound.js"></script>
+
+  <!-- 4) Blocking script in head (no defer/async) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+
+  <!-- 5) Syntax error script to create JS parse error -->
+  <script>
+    // Intentionally broken JS (missing brace)
+    function brokenFunc() {
+      console.log("This will create a syntax error")
+  </script>
+
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .warn { color: #b03; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>VWO Debugger - Full Failure Test Page</h1>
+  <p class="warn">This page intentionally fails many SmartCode / VWO checks.</p>
+
+  <p>Buttons below trigger runtime and dependency failures:</p>
+  <button id="throwError">Throw runtime error</button>
+  <button id="pushDataLayer">Push dataLayer</button>
+  <button id="callJQuery">Call jQuery ($) - intentionally missing jQuery</button>
+
+  <div id="result"></div>
+
+  <div id="shadow-host"></div>
+
+  <script>
+    // 6) Runtime console error on click (undefined function call)
+    document.getElementById('throwError').addEventListener('click', function () {
+      // Will throw runtime error
+      nonexistentFunctionCall();
+    });
+
+    // 7) dataLayer present only after click (simulate missing dataLayer until late)
+    document.getElementById('pushDataLayer').addEventListener('click', function () {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'manual_push',
+        info: 'pushed after page loaded'
+      });
+      document.getElementById('result').innerText = 'dataLayer pushed';
+      console.log('dataLayer:', window.dataLayer);
+    });
+
+    // 8) jQuery dependency check failure: attempt to use $ without including jQuery
+    document.getElementById('callJQuery').addEventListener('click', function () {
+      try {
+        // this should throw "Uncaught ReferenceError: $ is not defined"
+        $('#nonexistent').hide();
+      } catch (e) {
+        console.error('jQuery call failed (intended):', e);
+      }
+    });
+
+    // 9) Shadow DOM element (tools often fail to detect if not handling shadow root)
+    const host = document.querySelector('#shadow-host');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const shadowBtn = document.createElement('button');
+    shadowBtn.id = 'shadow_btn';
+    shadowBtn.textContent = 'Shadow Button';
+    shadow.appendChild(shadowBtn);
+    shadowBtn.addEventListener('click', () => console.log('shadow clicked'));
+
+    // 10) Clear cookies to simulate cookie validation failures
+    document.cookie.split(";").forEach(function(c) {
+      document.cookie = c.trim().split("=")[0] + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/';
+    });
+
+    // 11) Intentionally set a slow resource request that the server will delay
+    const slowScript = document.createElement('script');
+    slowScript.src = "/slow.js"; // served by server.js with delay -> may cause timeout errors
+    document.body.appendChild(slowScript);
+
+    // 12) No consent manager added intentionally (Consent Manager Check should fail)
+    // (We do nothing - so absence is simulated)
+
+    // 13) Make sure _vis_opt_url var is NOT present to cause related check to fail
+    if (window._vis_opt_url) {
+      console.log('_vis_opt_url exists (unexpected).');
+    } else {
+      console.log('_vis_opt_url not present (expected).');
+    }
+  </script>
+</body>
+</html>
